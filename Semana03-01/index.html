@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Clínica IA - Diagnóstico en Tiempo Real</title>
+    <style>
+        :root { --primary: #1a73e8; --bg: #f8f9fa; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 40px; }
+        .card { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.1); width: 100%; max-width: 500px; }
+        .upload-zone { border: 2px dashed #cbd5e0; padding: 2rem; text-align: center; border-radius: 10px; margin-bottom: 1rem; cursor: pointer; }
+        .upload-zone:hover { border-color: var(--primary); background: #f1f7ff; }
+        #preview { width: 100%; border-radius: 8px; display: none; margin-bottom: 1rem; }
+        button { background: var(--primary); color: white; border: none; width: 100%; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        #result { margin-top: 1.5rem; padding: 1rem; border-radius: 8px; display: none; line-height: 1.6; border: 1px solid #e2e8f0; }
+        .loader { border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; width: 30px; height: 30px; animation: spin 1s linear infinite; margin: 10px auto; display: none; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>🩺 Analizador de Visión Médica</h2>
+    <div class="upload-zone" onclick="document.getElementById('fileInput').click()">
+        <p id="msg">Click para subir receta o análisis</p>
+        <input type="file" id="fileInput" hidden onchange="preview()" accept="image/*">
+        <img id="preview">
+    </div>
+    <button id="btn" onclick="analizar()">Analizar con IA</button>
+    <div class="loader" id="loader"></div>
+    <div id="result"></div>
+</div>
+
+<script>
+    const WEBHOOK_URL = "TU_URL_DE_N8N_AQUI";
+
+    function preview() {
+        const file = document.getElementById('fileInput').files[0];
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            document.getElementById('preview').src = reader.result;
+            document.getElementById('preview').style.display = "block";
+            document.getElementById('msg').style.display = "none";
+        }
+        if (file) reader.readAsDataURL(file);
+    }
+
+    async function analizar() {
+        const fileInput = document.getElementById('fileInput');
+        const resultDiv = document.getElementById('result');
+        const loader = document.getElementById('loader');
+        
+        if (!fileInput.files[0]) return alert("Sube una imagen");
+
+        loader.style.display = "block";
+        resultDiv.style.display = "none";
+
+        const formData = new FormData();
+        formData.append("data", fileInput.files[0]);
+
+        try {
+            const response = await fetch(WEBHOOK_URL, { method: "POST", body: formData });
+            const data = await response.json(); // Esperamos el JSON de n8n
+            
+            resultDiv.style.display = "block";
+            resultDiv.innerHTML = `<strong>📋 Resultado:</strong><br>${data.analisis.replace(/\n/g, '<br>')}`;
+            resultDiv.style.background = "#eefaf3";
+        } catch (err) {
+            alert("Error en la conexión con n8n");
+        } finally {
+            loader.style.display = "none";
+        }
+    }
+</script>
+</body>
+</html>
