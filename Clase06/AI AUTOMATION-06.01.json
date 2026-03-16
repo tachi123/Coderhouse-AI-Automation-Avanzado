@@ -1,0 +1,255 @@
+{
+  "name": "AI AUTOMATION-06.01",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "5e4f4d74-4482-49bc-b57e-90a70ae5e859",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -608,
+        240
+      ],
+      "id": "f95bb81d-6251-4654-96ae-ce444fb752dc",
+      "name": "Webhook",
+      "webhookId": "5e4f4d74-4482-49bc-b57e-90a70ae5e859"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9000/asr",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "audio_file",
+              "inputDataFieldName": "audio"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -352,
+        -32
+      ],
+      "id": "0227477f-977f-42cb-b1e1-4e64807e7188",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Traemos el texto de Whisper\nconst textoCompleto = $node[\"HTTP Request\"].json[\"data\"]; \n\n// 2. Definimos de qué tamaño queremos los pedazos (Chunks)\n// Por ejemplo: 1000 caracteres para que Ollama no sufra.\nconst tamañoChunk = 1000; \nconst pedazos = [];\n\n// 3. El motor que corta el texto\nfor (let i = 0; i < textoCompleto.length; i += tamañoChunk) {\n    pedazos.push({\n        json: {\n            contenido_chunk: textoCompleto.substring(i, i + tamañoChunk),\n            numero_de_parte: (i / tamañoChunk) + 1\n        }\n    });\n}\n\n// 4. Devolvemos los pedazos ya cortados\nreturn pedazos;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -160,
+        -32
+      ],
+      "id": "919f27f5-ca09-4b35-9333-706b33cd82eb",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        80,
+        -240
+      ],
+      "id": "85cb7106-71f3-4701-96eb-2c65136c894e",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "model": "llava:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        112,
+        192
+      ],
+      "id": "2939ce5e-6ebd-46ad-88a8-4b2a7b4f6f83",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "Bdnw9tuHuUZtUf2E",
+          "name": "Ollama account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=file",
+        "options": {
+          "systemMessage": "Sos un asistente radiólogo experto. Vas a recibir una imagen (estudio médico) y un fragmento de audio (transcripción). Tu misión es confirmar si lo que el médico dice en el audio coincide con lo que se observa en la imagen. Respondé de forma técnica pero breve. Si el audio está incompleto, basate principalmente en la imagen",
+          "passthroughBinaryImages": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        112,
+        -32
+      ],
+      "id": "de6bfa32-d1e3-4f70-a24f-f3606587eaf3",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": ""
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.ollama",
+      "typeVersion": 1,
+      "position": [
+        368,
+        -224
+      ],
+      "id": "c0c9570b-ec83-4b2a-9314-73495fc5d411",
+      "name": "Analyze image",
+      "credentials": {
+        "ollamaApi": {
+          "id": "Bdnw9tuHuUZtUf2E",
+          "name": "Ollama account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "write",
+        "fileName": "=informe_final.md",
+        "dataPropertyName": "=data",
+        "options": {
+          "append": true
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        688,
+        -32
+      ],
+      "id": "3e401f74-c149-406d-ae1c-d8a3df2ed52f",
+      "name": "Read/Write Files from Disk"
+    },
+    {
+      "parameters": {
+        "operation": "toJson",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        -32
+      ],
+      "id": "205ea8b8-4573-420d-9568-0032c1bdd6e9",
+      "name": "Convert to File"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Convert to File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert to File": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "b81c4fd3-d816-4d22-a7af-1c849224fdc3",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c8ce18066f25917bc44c6f65d6b4d34c6b6208f08c0a90225db447df4117f31"
+  },
+  "id": "sUsmD8P7wi79diTa",
+  "tags": []
+}

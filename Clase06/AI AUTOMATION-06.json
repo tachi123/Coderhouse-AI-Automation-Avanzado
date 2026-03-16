@@ -1,0 +1,256 @@
+{
+  "name": "AI AUTOMATION-06",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "cf646f7c-9cd4-4bbc-b3e6-512ef5ec6721",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -864,
+        112
+      ],
+      "id": "67a3e60c-1271-42ba-8a48-4b883b60a8b0",
+      "name": "Webhook",
+      "webhookId": "cf646f7c-9cd4-4bbc-b3e6-512ef5ec6721"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:9000/asr",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "audio_file",
+              "inputDataFieldName": "audio_file_input"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -560,
+        -176
+      ],
+      "id": "e5e84956-b38d-4298-beab-35cfcc2c1d27",
+      "name": "Transcribe el audio"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.data }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Sos un asistente radiólogo experto. Vas a recibir una imagen (estudio médico) y un fragmento de audio (transcripción). Tu misión es confirmar si lo que el médico dice en el audio coincide con lo que se observa en la imagen. Respondé de forma técnica pero breve. Si el audio está incompleto, basate principalmente en la imagen"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        80,
+        -544
+      ],
+      "id": "9e385759-009c-4d50-8041-0a8eeacddbd4",
+      "name": "Agente de solo texto"
+    },
+    {
+      "parameters": {
+        "model": "llava:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -96,
+        16
+      ],
+      "id": "ce449b43-1fb7-4be4-9370-2881980a471b",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "Bdnw9tuHuUZtUf2E",
+          "name": "Ollama account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "image",
+        "modelId": {
+          "__rl": true,
+          "value": "llava:latest",
+          "mode": "list",
+          "cachedResultName": "llava:latest"
+        },
+        "text": "",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.ollama",
+      "typeVersion": 1,
+      "position": [
+        144,
+        -336
+      ],
+      "id": "e13ac4b7-5b18-42d3-bc75-20b28b605a76",
+      "name": "Analyze image",
+      "credentials": {
+        "ollamaApi": {
+          "id": "Bdnw9tuHuUZtUf2E",
+          "name": "Ollama account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Radiografía: {{ $binary.file }} , audio transcripto: {{ $json.data }}",
+        "options": {
+          "systemMessage": "Sos un asistente radiólogo experto. Vas a recibir una imagen (estudio médico) y un fragmento de audio (transcripción). Tu misión es confirmar si lo que el médico dice en el audio coincide con lo que se observa en la imagen. Respondé de forma técnica pero breve. Si el audio está incompleto, basate principalmente en la imagen",
+          "passthroughBinaryImages": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        64,
+        -176
+      ],
+      "id": "c98e28e3-b4c7-4c86-bd2b-00af649353f5",
+      "name": "AI Agent Multimodal"
+    },
+    {
+      "parameters": {
+        "model": "groq/compound-mini",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -320,
+        160
+      ],
+      "id": "3b406c4c-b98c-4388-85e9-e5a452861b39",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "0yerSZ3xHxYUhcYz",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [
+        -352,
+        -336
+      ],
+      "id": "3b03d065-7d42-4a6b-8d7a-1e8f567bea7a",
+      "name": "Split Out"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 1. Traemos el texto de Whisper\nconst textoCompleto = $node[\"Transcribe el audio\"].json[\"data\"]; \n\n// 2. Definimos de qué tamaño queremos los pedazos (Chunks)\n// Por ejemplo: 1000 caracteres para que Ollama no sufra.\nconst tamañoChunk = 10; \nconst pedazos = [];\n\n// 3. El motor que corta el texto\nfor (let i = 0; i < textoCompleto.length; i += tamañoChunk) {\n    pedazos.push({\n        json: {\n            contenido_chunk: textoCompleto.substring(i, i + tamañoChunk),\n            numero_de_parte: (i / tamañoChunk) + 1\n        }\n    });\n}\n\n// 4. Devolvemos los pedazos ya cortados\nreturn pedazos;;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        -176
+      ],
+      "id": "31e9e3b8-a882-42b1-ba4f-b1e94b6baed9",
+      "name": "Code in JavaScript for chunking"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Transcribe el audio",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "AI Agent Multimodal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transcribe el audio": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript for chunking",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent Multimodal",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        []
+      ]
+    },
+    "Split Out": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript for chunking": {
+      "main": [
+        [
+          {
+            "node": "AI Agent Multimodal",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "478332d6-6dc4-4353-81f2-44de3ad3188c",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c8ce18066f25917bc44c6f65d6b4d34c6b6208f08c0a90225db447df4117f31"
+  },
+  "id": "SC1SMOUq3qFyqSVt",
+  "tags": []
+}

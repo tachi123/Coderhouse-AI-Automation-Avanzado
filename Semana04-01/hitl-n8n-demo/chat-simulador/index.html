@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Simulador HITL Medico</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --card: #ffffff;
+      --line: #d8deeb;
+      --text: #1d2433;
+      --muted: #5f6b86;
+      --ok: #0b8a4a;
+      --ok-2: #d9f5e5;
+      --no: #b42318;
+      --no-2: #ffe3e0;
+      --cta: #0b57d0;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(1200px 700px at 90% -10%, #dfe9ff 0%, transparent 60%),
+        radial-gradient(900px 500px at -10% 110%, #e7fff3 0%, transparent 50%),
+        var(--bg);
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+
+    .card {
+      width: min(760px, 100%);
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(22, 34, 66, 0.08);
+      overflow: hidden;
+    }
+
+    .head {
+      padding: 20px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(90deg, #f2f7ff, #f4fffa);
+    }
+
+    .head h1 {
+      margin: 0;
+      font-size: 22px;
+      line-height: 1.3;
+    }
+
+    .head p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .body {
+      padding: 20px;
+      display: grid;
+      gap: 14px;
+    }
+
+    label {
+      display: grid;
+      gap: 6px;
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    input, textarea {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      font: inherit;
+      padding: 10px 12px;
+      color: var(--text);
+      background: #fff;
+    }
+
+    textarea { min-height: 74px; resize: vertical; }
+
+    .row {
+      display: grid;
+      gap: 10px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 6px;
+    }
+
+    button {
+      border: 0;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font: inherit;
+      cursor: pointer;
+      transition: transform .08s ease, filter .2s ease;
+    }
+
+    button:active { transform: translateY(1px); }
+
+    .approve {
+      background: var(--ok-2);
+      color: var(--ok);
+    }
+
+    .reject {
+      background: var(--no-2);
+      color: var(--no);
+    }
+
+    .copy {
+      background: #eef3ff;
+      color: var(--cta);
+    }
+
+    .status {
+      font-size: 13px;
+      border: 1px dashed var(--line);
+      padding: 10px;
+      border-radius: 10px;
+      background: #fafbff;
+      color: #29334d;
+      white-space: pre-wrap;
+      word-break: break-word;
+      min-height: 50px;
+    }
+
+    @media (max-width: 640px) {
+      .row { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <section class="head">
+      <h1>Simulador de Aprobacion Medica (HITL)</h1>
+      <p>Este mini-chat manda un POST al webhook de aprobacion en n8n.</p>
+    </section>
+
+    <section class="body">
+      <label>
+        URL Webhook de aprobacion
+        <input id="webhook" placeholder="http://localhost:5678/webhook/aprobacion-medica" />
+      </label>
+
+      <div class="row">
+        <label>
+          Paciente ID
+          <input id="paciente_id" placeholder="P-0001" />
+        </label>
+        <label>
+          Medico
+          <input id="medico" placeholder="Dra. Alvarez" />
+        </label>
+      </div>
+
+      <label>
+        Observacion
+        <textarea id="obs" placeholder="Comentario opcional del medico..."></textarea>
+      </label>
+
+      <div class="actions">
+        <button class="approve" id="btnApprove">Aprobar</button>
+        <button class="reject" id="btnReject">Rechazar</button>
+        <button class="copy" id="btnCopyCurl">Copiar cURL</button>
+      </div>
+
+      <div id="status" class="status">Listo para enviar decision.</div>
+    </section>
+  </main>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const status = $("status");
+
+    const q = new URLSearchParams(window.location.search);
+    if (q.get("webhook")) $("webhook").value = q.get("webhook");
+    if (q.get("paciente_id")) $("paciente_id").value = q.get("paciente_id");
+
+    function payload(aprobado) {
+      return {
+        aprobado,
+        paciente_id: $("paciente_id").value || null,
+        medico: $("medico").value || "Medico de Guardia",
+        observacion: $("obs").value || "",
+        ts: new Date().toISOString()
+      };
+    }
+
+    async function sendDecision(aprobado) {
+      const webhook = $("webhook").value.trim();
+      if (!webhook) {
+        status.textContent = "Falta URL de webhook.";
+        return;
+      }
+
+      const body = payload(aprobado);
+      status.textContent = `Enviando ${aprobado ? "APROBADO" : "RECHAZADO"}...`;
+
+      try {
+        const res = await fetch(webhook, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        const text = await res.text();
+        status.textContent = [
+          `HTTP ${res.status}`,
+          `Decision: ${aprobado ? "APROBADO" : "RECHAZADO"}`,
+          "Respuesta:",
+          text || "(sin contenido)"
+        ].join("\n");
+      } catch (err) {
+        status.textContent = `Error al enviar: ${err.message}`;
+      }
+    }
+
+    function buildCurl(aprobado) {
+      const webhook = $("webhook").value.trim();
+      const body = payload(aprobado);
+      return `curl -X POST "${webhook}" -H "Content-Type: application/json" -d '${JSON.stringify(body)}'`;
+    }
+
+    $("btnApprove").addEventListener("click", () => sendDecision(true));
+    $("btnReject").addEventListener("click", () => sendDecision(false));
+    $("btnCopyCurl").addEventListener("click", async () => {
+      const curl = buildCurl(true);
+      await navigator.clipboard.writeText(curl);
+      status.textContent = "cURL copiado para decision APROBADO. Editalo si queres enviar rechazo.";
+    });
+  </script>
+</body>
+</html>

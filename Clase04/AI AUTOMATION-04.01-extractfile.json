@@ -1,0 +1,228 @@
+{
+  "name": "AI AUTOMATION-04.01-extractfile",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "a1596032-d47a-4a24-9141-9b35e1b9a4cf",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -736,
+        -80
+      ],
+      "id": "bb19976b-1500-4181-8b3d-059badf491be",
+      "name": "Webhook",
+      "webhookId": "a1596032-d47a-4a24-9141-9b35e1b9a4cf",
+      "alwaysOutputData": false,
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "data0",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        -336,
+        -80
+      ],
+      "id": "402d12fb-4e12-433c-b878-dabbb4bcd0f2",
+      "name": "Extract from File"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Actúa como un Analista de Datos Clínicos de élite. Vas a recibir texto extraído de un PDF médico. Tareas:  EXTRAER: Busca valores de 'Glucosa' y 'Creatinina'. Ignora el desorden del texto.  ANONIMIZAR: Cambia cualquier nombre de persona por 'PACIENTE_CONFIDENCIAL'.  EVALUAR: Si Glucosa > 120 o Creatinina > 1.3, el estado es 'URGENTE'. De lo contrario 'ESTABLE'.  FORMATO: Responde ÚNICAMENTE en JSON: {'estado': '...', 'paciente': '...', 'valores': '...'}\""
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -64,
+        -80
+      ],
+      "id": "101c885e-608f-4825-a6c3-6c4ee99b6b1e",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        128
+      ],
+      "id": "09f18d5d-b196-41dd-bebe-175862a60a23",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "0yerSZ3xHxYUhcYz",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\"status\": \"URGENTE\", \"paciente\": \"PACIENTE_ANONIMIZADO\", \"valores\": {\"glucosa\": 325, \"creatinina\": 2.8}}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        96,
+        112
+      ],
+      "id": "fb4f90fe-2c92-46cf-885c-127684974098",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "URGENTE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "25518ad9-f418-446a-bbd9-3aa765193ed9"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "61565a4a-e837-4cfc-8332-24b343d2e3a1",
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "NORMAL",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        288,
+        -80
+      ],
+      "id": "e74de195-9bb7-44c3-9acd-7d4c6318dbf6",
+      "name": "Switch"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Extract from File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from File": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "0d3ea29d-4bfb-4df7-8b3c-c52322467ed5",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c8ce18066f25917bc44c6f65d6b4d34c6b6208f08c0a90225db447df4117f31"
+  },
+  "id": "2H7HQrAaYdNosacv",
+  "tags": []
+}

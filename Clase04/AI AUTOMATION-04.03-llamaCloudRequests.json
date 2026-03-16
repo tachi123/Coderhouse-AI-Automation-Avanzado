@@ -1,0 +1,273 @@
+{
+  "name": "AI AUTOMATION-04.03-llamaCloudRequests",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "f1444b43-6343-49d2-95d7-6326a5c3cbb8",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -720,
+        -160
+      ],
+      "id": "a11f4cdc-f9dc-44ab-b870-fa668dc17758",
+      "name": "Webhook",
+      "webhookId": "f1444b43-6343-49d2-95d7-6326a5c3cbb8"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.text }}",
+        "hasOutputParser": true,
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Actúa como un Analista de Datos Clínicos de élite. Vas a recibir texto extraído de un PDF médico. \n\nTareas:  EXTRAER: Busca valores de 'Glucosa' y 'Creatinina'. Ignora el desorden del texto.  \n\nANONIMIZAR: Cambia cualquier nombre de persona por 'PACIENTE_CONFIDENCIAL'. \n\nEVALUAR: Si Glucosa > 120 o Creatinina > 1.3, el estado es 'URGENTE'. De lo contrario 'ESTABLE'.  \n\nFORMATO: Responde ÚNICAMENTE en JSON: {'estado': '...', 'paciente': '...', 'valores': '...'}\""
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -64,
+        -160
+      ],
+      "id": "40419580-5d1b-47a6-85eb-c2a7dce74142",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {
+          "temperature": 0.2
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -112,
+        80
+      ],
+      "id": "d4ae648d-1797-448a-9b9f-40751620fa3b",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "0yerSZ3xHxYUhcYz",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "URGENTE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "id": "91d32bac-f2af-4c55-83d2-6220e0475faf"
+                  }
+                ],
+                "combinator": "and"
+              }
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 3
+                },
+                "conditions": [
+                  {
+                    "id": "c4728b2c-ccc4-47c7-9aa0-bf3224c6d534",
+                    "leftValue": "={{ $json.output.status }}",
+                    "rightValue": "LEVE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              }
+            }
+          ]
+        },
+        "options": {
+          "ignoreCase": true
+        }
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.4,
+      "position": [
+        288,
+        -160
+      ],
+      "id": "8df7bd80-d120-4c09-afd8-e8023914a770",
+      "name": "Switch"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"status\" : \"URGENTE\",\n  \"paciente\" : \"PACIENTE_ANONIMIZADO\",\n  \"valores\": {\n    \"glucosa\": 100,\n    \"creatinina\": 1\n  }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        128,
+        64
+      ],
+      "id": "34f529af-364b-4200-9df1-ad5137e104bc",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cloud.llamaindex.ai/api/v1/parsing/upload",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpBearerAuth",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "data0"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -480,
+        -160
+      ],
+      "id": "6ea35dc1-1d59-4cbe-b4ba-5dd81d56a437",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "RUOoAe9aIrecQMtG",
+          "name": "Bearer Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "https://api.cloud.llamaindex.ai/api/v1/parsing/job/asdasdasd/result/markdown",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -256,
+        -160
+      ],
+      "id": "4486d246-9123-4f93-bb29-7293a9f46b40",
+      "name": "HTTP Request1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "Switch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "2ae2de25-b814-4850-8171-63da40610d00",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c8ce18066f25917bc44c6f65d6b4d34c6b6208f08c0a90225db447df4117f31"
+  },
+  "id": "z1Ju5WSCVZFx3c78",
+  "tags": []
+}

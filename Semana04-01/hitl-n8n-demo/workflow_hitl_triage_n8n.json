@@ -1,0 +1,730 @@
+{
+  "name": "HITL Triage Medico - Ollama + Chat + Aprobacion",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "recepcion-paciente",
+        "options": {}
+      },
+      "id": "0dfa3039-3857-4f92-aae4-6e4cf338a930",
+      "name": "Webhook - Recepcion Paciente1",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -16208,
+        -48
+      ],
+      "webhookId": "23cd54c2-9b54-4cad-8be5-3f547614d717"
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "imagen_url",
+              "stringValue": "https://medlineplus.gov/images/Xray.jpg"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "4acb60e0-e78d-4e3d-8bfe-46ec71f3dc2b",
+      "name": "Set - Inicializar Contexto1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        -15968,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ (() => { const raw = $json.imagen_url || ''; try { const parsed = new URL(raw); const fromGoogle = parsed.searchParams.get('imgurl') || parsed.searchParams.get('mediaurl'); return fromGoogle ? decodeURIComponent(fromGoogle) : raw; } catch (error) { return raw; } })() }}",
+        "options": {}
+      },
+      "id": "08249830-e3a8-4b6b-8828-b1b981d69a06",
+      "name": "HTTP - Descargar Imagen1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -15728,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const contexto = $node['Set - Inicializar Contexto1'].json;\nconst binaryData = $input.item.binary || $binary || {};\nconst binaryKey = Object.keys(binaryData)[0];\n\nif (!binaryKey) {\n  throw new Error(`No se recibio un archivo binario. La URL probablemente apunta a HTML y no a una imagen: ${contexto.imagen_url || 'sin URL'}`);\n}\n\nconst archivo = binaryData[binaryKey];\nconst mimeType = archivo.mimeType || '';\n\nif (mimeType && !mimeType.startsWith('image/')) {\n  throw new Error(`La descarga no es una imagen valida. MIME recibido: ${mimeType}. Usa una URL directa del archivo o una URL de Google Images que incluya imgurl=.`);\n}\n\nconst fileBuffer = await this.helpers.getBinaryDataBuffer(0, binaryKey);\nif (!fileBuffer || !fileBuffer.length) {\n  throw new Error('Se recibio el archivo, pero no se pudieron leer sus bytes reales desde el almacenamiento binario de n8n.');\n}\n\nreturn [{\n  json: {\n    ...contexto,\n    ia_prompt: 'Analiza esta imagen medica. Responde SOLO en JSON valido con dos campos: gravedad (1 al 5) y descripcion_breve.',\n    image_b64: fileBuffer.toString('base64'),\n    image_mime_type: mimeType || 'image/jpeg'\n  }\n}];"
+      },
+      "id": "455ce5e2-00ab-4b8b-b7e2-1a394e743d72",
+      "name": "Code - Preparar Prompt Vision1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -15488,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=http://host.docker.internal:11434/api/generate",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { model: 'llava', prompt: $json.ia_prompt, stream: false, format: 'json', images: [$json.image_b64] } }}",
+        "options": {}
+      },
+      "id": "9bdcd073-ba5b-44cd-a332-3464b5f26552",
+      "name": "Ollama Vision - LLaVA1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -15248,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.response || '{}';\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (e) {\n  throw new Error(`No se pudo parsear JSON de Ollama. Respuesta: ${raw}`);\n}\n\nreturn [{\n  json: {\n    ...$json,\n    gravedad: Number(parsed.gravedad || 3),\n    descripcion_breve: String(parsed.descripcion_breve || 'Sin descripcion'),\n    tiempo_ia: $now.toISO()\n  }\n}];"
+      },
+      "id": "3b703434-9698-4d1d-ac46-e2219240c42d",
+      "name": "Code - Parsear Salida IA1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -15008,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "aprobacion_webhook_url",
+              "stringValue": "=http://127.0.0.1:5500/Semana04-01/hitl-n8n-demo/chat-simulador/index.html"
+            },
+            {
+              "name": "simulador_url",
+              "stringValue": "=http://127.0.0.1:5500/Semana04-01/hitl-n8n-demo/chat-simulador/index.html"
+            },
+            {
+              "name": "mensaje_medico",
+              "stringValue": "={{'Atencion: Nuevo triage de ' + ($json.nombre || 'Paciente') + '. IA sugiere Gravedad ' + $json.gravedad + '. Descripcion: ' + $json.descripcion_breve + '. Abrir simulador: ' + 'http://127.0.0.1:5500/Semana04-01/hitl-n8n-demo/chat-simulador/index.html' + '?webhook=' + 'http://127.0.0.1:5500/Semana04-01/hitl-n8n-demo/chat-simulador/index.html' + '&paciente_id=' + encodeURIComponent($json.id || '')}}"
+            },
+            {
+              "name": "canal_notificacion",
+              "stringValue": "simulador-chat"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c725cef5-1546-4bd4-908b-87ea6ed83eca",
+      "name": "Set - Armar Links Aprobacion",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        -14816,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CHATWOOT_URL + '/api/v1/accounts/' + $env.CHATWOOT_ACCOUNT_ID + '/conversations/' + $env.CHATWOOT_CONVERSATION_ID + '/messages'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "={{$env.CHATWOOT_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { content: 'Atencion: Nuevo triage de ' + ($json.nombre || 'Paciente') + '. IA sugiere Gravedad ' + $json.gravedad + '. Descripcion: ' + $json.descripcion_breve + '. Aprobar/Rechazar: ' + $json.simulador_url, message_type: 'outgoing', private: false } }}",
+        "options": {}
+      },
+      "id": "fea728e7-a03f-490d-b6e1-4f9ea24a2f65",
+      "name": "HTTP - Notificar Medico (Chatwoot)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -14336,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "resume": "webhook",
+        "httpMethod": "POST",
+        "options": {}
+      },
+      "id": "f228c5b4-07c9-4485-9fbf-6e1b621112d5",
+      "name": "Wait for Webhook - Aprobacion",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        -14192,
+        -256
+      ],
+      "webhookId": "b8203ff8-59b0-4ba8-aadb-84b5fd6ee8ff"
+    },
+    {
+      "parameters": {
+        "amount": 2,
+        "unit": "minutes"
+      },
+      "id": "087b5ee5-ec0e-4e51-bdd4-c3d81b1ed410",
+      "name": "Wait - Timeout 10m",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [
+        -14176,
+        144
+      ],
+      "webhookId": "ac9df0f2-e7dc-4a0b-be18-6a1367609d80"
+    },
+    {
+      "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "aprobacion_webhook_url",
+              "stringValue": "={{$execution.resumeUrl}}"
+            },
+            {
+              "name": "simulador_url",
+              "stringValue": "={{'http://127.0.0.1:5500/Semana04-01/hitl-n8n-demo/chat-simulador/index.html' + '?webhook=' + encodeURIComponent($execution.resumeUrl) + '&paciente_id=' + encodeURIComponent($json.id || '')}}"
+            },
+            {
+              "name": "mensaje_medico",
+              "stringValue": "={{'Atencion: Nuevo triage de ' + ($json.nombre || 'Paciente') + '. IA sugiere Gravedad ' + $json.gravedad + '. Descripcion: ' + $json.descripcion_breve + '. Abrir simulador: ' + ('http://127.0.0.1:5500/Semana04-01/hitl-n8n-demo/chat-simulador/index.html' + '?webhook=' + encodeURIComponent($execution.resumeUrl) + '&paciente_id=' + encodeURIComponent($json.id || ''))}}"
+            },
+            {
+              "name": "canal_notificacion",
+              "stringValue": "simulador-chat"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "fd76ae29-fd7d-4195-8791-0be3c36bcec8",
+      "name": "Set - Armar Links Aprobacion2",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        -14608,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ !!$json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f28dd461-dc36-4525-b502-7d17469f8e21",
+      "name": "IF - Error en Log MySQL?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -12544,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage'}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chat_id: $env.TELEGRAM_CHAT_ID, text: 'FALLBACK MYSQL: no se pudo insertar en logs_hitl. Paciente ID: ' + ($node['Webhook - Recepcion Paciente1'].json.id || 'N/A') + '. Error: ' + (($json.error && ($json.error.message || $json.error)) || 'sin detalle') } }}",
+        "options": {}
+      },
+      "id": "da408c5f-be61-4967-a9d9-6c8025984300",
+      "name": "HTTP - Fallback Error MySQL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -12288,
+        -48
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const v = $json.aprobado ?? $json.approved ?? false;\nconst aprobado = String(v).toLowerCase() === 'true' || v === true;\nreturn [{ json: { ...$json, aprobado } }];"
+      },
+      "id": "5d0fdb0e-8655-4efc-b082-d4027053b8e3",
+      "name": "Code - Normalizar Decision1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -13968,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.aprobado}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "eff16959-be94-46ba-8c7f-a7388b59f55d",
+      "name": "IF - Aprobado?1",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -13728,
+        -208
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "65e8ea4a-8f52-48a0-92a3-020d05084f49",
+      "name": "Set - Armar Informe Markdown1",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3,
+      "position": [
+        -13488,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "jsonToBinary",
+        "options": {}
+      },
+      "id": "0a12880a-7331-4d02-b6f6-35e5efb27838",
+      "name": "Move Binary Data - MD1",
+      "type": "n8n-nodes-base.moveBinaryData",
+      "typeVersion": 1,
+      "position": [
+        -13248,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "fileName": "={{'/home/node/informes/paciente_' + $node['Webhook - Recepcion Paciente1'].json['id'] + '.md'}}",
+        "options": {}
+      },
+      "id": "3f02849c-74b0-4d52-97b1-25d36d461d79",
+      "name": "Write Binary File - Informe1",
+      "type": "n8n-nodes-base.writeBinaryFile",
+      "typeVersion": 1,
+      "position": [
+        -13008,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.CHATWOOT_URL + '/api/v1/accounts/' + $env.CHATWOOT_ACCOUNT_ID + '/conversations/' + $env.CHATWOOT_CONVERSATION_ID + '/messages'}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "api_access_token",
+              "value": "={{$env.CHATWOOT_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { content: 'Triage de ' + ($node['Webhook - Recepcion Paciente1'].json.nombre || 'Paciente') + ' rechazado. Derivar a revision manual inmediata.', message_type: 'outgoing', private: false } }}",
+        "options": {}
+      },
+      "id": "49f962cd-583c-48bb-b3b2-4f733570c484",
+      "name": "HTTP - Notificar Revision Manual1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -13488,
+        -112
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage'}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chat_id: $env.TELEGRAM_CHAT_ID, text: 'ALERTA: Triage sin revisar hace 10 minutos. Posible cuello de botella. Paciente ID: ' + ($node['Webhook - Recepcion Paciente1'].json.id || 'N/A') } }}",
+        "options": {}
+      },
+      "id": "6e8e7f03-f581-4b19-99ed-fffa55b52a2f",
+      "name": "HTTP - Telegram Alerta Jefe1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -13968,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO logs_hitl (paciente_id, tiempo_ia, tiempo_humano, decision) VALUES ('{{$node[\"Webhook - Recepcion Paciente1\"].json[\"id\"]}}', '{{$node[\"Code - Parsear Salida IA1\"].json[\"tiempo_ia\"]}}', '{{$now.toISO()}}', 'aprobado');",
+        "options": {}
+      },
+      "id": "c9acb59c-32b4-4c36-90a4-82d7e4543f94",
+      "name": "MySQL - Log Aprobado1",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [
+        -12768,
+        -320
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "lxcrYbPPMerr82nV",
+          "name": "MySQL account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO logs_hitl (paciente_id, tiempo_ia, tiempo_humano, decision) VALUES ('{{$node[\"Webhook - Recepcion Paciente1\"].json[\"id\"]}}', '{{$node[\"Code - Parsear Salida IA1\"].json[\"tiempo_ia\"]}}', '{{$now.toISO()}}', 'rechazado');",
+        "options": {}
+      },
+      "id": "8c6477f9-f50d-4582-8e4e-3056e572857b",
+      "name": "MySQL - Log Rechazado1",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [
+        -13248,
+        -112
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "lxcrYbPPMerr82nV",
+          "name": "MySQL account"
+        }
+      },
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO logs_hitl (paciente_id, tiempo_ia, tiempo_humano, decision) VALUES ('{{$node[\"Webhook - Recepcion Paciente1\"].json[\"id\"]}}', '{{$node[\"Code - Parsear Salida IA1\"].json[\"tiempo_ia\"]}}', '{{$now.toISO()}}', 'timeout_10m');",
+        "options": {}
+      },
+      "id": "91113202-1697-41f7-8903-b0bb1ecc56ae",
+      "name": "MySQL - Log Timeout1",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2,
+      "position": [
+        -13728,
+        48
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "lxcrYbPPMerr82nV",
+          "name": "MySQL account"
+        }
+      },
+      "continueOnFail": true
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook - Recepcion Paciente1": {
+      "main": [
+        [
+          {
+            "node": "Set - Inicializar Contexto1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Inicializar Contexto1": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Descargar Imagen1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Descargar Imagen1": {
+      "main": [
+        [
+          {
+            "node": "Code - Preparar Prompt Vision1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Preparar Prompt Vision1": {
+      "main": [
+        [
+          {
+            "node": "Ollama Vision - LLaVA1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Vision - LLaVA1": {
+      "main": [
+        [
+          {
+            "node": "Code - Parsear Salida IA1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Parsear Salida IA1": {
+      "main": [
+        [
+          {
+            "node": "Set - Armar Links Aprobacion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Armar Links Aprobacion": {
+      "main": [
+        [
+          {
+            "node": "Set - Armar Links Aprobacion2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Notificar Medico (Chatwoot)": {
+      "main": [
+        [
+          {
+            "node": "Wait for Webhook - Aprobacion",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait - Timeout 10m",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Webhook - Aprobacion": {
+      "main": [
+        [
+          {
+            "node": "Code - Normalizar Decision1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait - Timeout 10m": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Telegram Alerta Jefe1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Armar Links Aprobacion2": {
+      "main": [
+        [
+          {
+            "node": "Wait for Webhook - Aprobacion",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Wait - Timeout 10m",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Error en Log MySQL?": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Fallback Error MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Normalizar Decision1": {
+      "main": [
+        [
+          {
+            "node": "IF - Aprobado?1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Aprobado?1": {
+      "main": [
+        [
+          {
+            "node": "Set - Armar Informe Markdown1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "HTTP - Notificar Revision Manual1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Set - Armar Informe Markdown1": {
+      "main": [
+        [
+          {
+            "node": "Move Binary Data - MD1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Move Binary Data - MD1": {
+      "main": [
+        [
+          {
+            "node": "Write Binary File - Informe1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Binary File - Informe1": {
+      "main": [
+        [
+          {
+            "node": "MySQL - Log Aprobado1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Notificar Revision Manual1": {
+      "main": [
+        [
+          {
+            "node": "MySQL - Log Rechazado1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Telegram Alerta Jefe1": {
+      "main": [
+        [
+          {
+            "node": "MySQL - Log Timeout1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL - Log Aprobado1": {
+      "main": [
+        [
+          {
+            "node": "IF - Error en Log MySQL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL - Log Rechazado1": {
+      "main": [
+        [
+          {
+            "node": "IF - Error en Log MySQL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "MySQL - Log Timeout1": {
+      "main": [
+        [
+          {
+            "node": "IF - Error en Log MySQL?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "e864d0f7-4430-4ec4-abdc-69a33f62d637",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c8ce18066f25917bc44c6f65d6b4d34c6b6208f08c0a90225db447df4117f31"
+  },
+  "id": "EQefs8oeRQT672xU",
+  "tags": []
+}

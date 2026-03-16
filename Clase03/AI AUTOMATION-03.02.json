@@ -1,0 +1,279 @@
+{
+  "name": "AI AUTOMATION-03.02",
+  "nodes": [
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "dc528666-ca5b-45c5-b6ca-6a682b35c651",
+              "name": "texto_protocolo",
+              "value": "PROTOCOLO CLÍNICO: MANEJO DE HIPERTENSIÓN LEVE  1. Definición: Se considera hipertensión leve a valores de sistólica entre 140-159 mmHg y/o diastólica entre 90-99 mmHg.  2. Tratamiento no farmacológico: Antes de medicar, se recomienda iniciar cambios en el estilo de vida por 3 meses: reducción de sal (<5g/día), ejercicio aeróbico 30 min diarios y abandono del tabaco.  3. Tratamiento farmacológico: Si tras 3 meses no se logran metas, iniciar monoterapia. Primera línea: Enalapril 10mg/día o Amlodipina 5mg/día.  4. Contraindicaciones: No usar Enalapril en embarazo (Categoría D). Precaución con Amlodipina en insuficiencia cardíaca.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -64,
+        -32
+      ],
+      "id": "a407afcc-8fc6-4310-8868-4439a1e2fc9f",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-embedding-001"
+      },
+      "type": "@n8n/n8n-nodes-langchain.embeddingsGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        432,
+        208
+      ],
+      "id": "bb6d7ec8-1a57-41b4-acd9-ebc4ffc679ab",
+      "name": "Embeddings Google Gemini",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "BGuM6UVek8MaP5vh",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "textSplittingMode": "custom",
+        "options": {
+          "metadata": {
+            "metadataValues": [
+              {
+                "name": "texto_protocolo"
+              }
+            ]
+          }
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.documentDefaultDataLoader",
+      "typeVersion": 1.1,
+      "position": [
+        128,
+        208
+      ],
+      "id": "c9a6aec8-04db-4648-b2d9-9e71e6c18aeb",
+      "name": "Default Data Loader"
+    },
+    {
+      "parameters": {
+        "chunkSize": 100,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.textSplitterRecursiveCharacterTextSplitter",
+      "typeVersion": 1,
+      "position": [
+        128,
+        384
+      ],
+      "id": "ff8a79f5-447e-40ff-bea1-77e16cd8befb",
+      "name": "Recursive Character Text Splitter"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        544,
+        -272
+      ],
+      "id": "133c8685-9b6b-4cba-b652-9122afa767d8",
+      "name": "When chat message received",
+      "webhookId": "06e40ad6-2b35-4d3b-a688-988bf04caef4"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Como experto médico responde la consulta llegada por el usuario:  {{ $('When chat message received').item.json.chatInput }} y si no sabes, responde que no tenes la respuesta",
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        1024,
+        -32
+      ],
+      "id": "63b1551e-68d5-49a7-9a47-cd9a45c110a5",
+      "name": "Basic LLM Chain"
+    },
+    {
+      "parameters": {
+        "model": "llama-3.3-70b-versatile",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1056,
+        160
+      ],
+      "id": "085c9c4c-94e9-4ead-a584-611337064c4e",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "0yerSZ3xHxYUhcYz",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "insert",
+        "memoryKey": {
+          "__rl": true,
+          "mode": "list",
+          "value": "vector_store_key"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        288,
+        -32
+      ],
+      "id": "d9054b23-cea0-4b40-ad3e-5f4958c2bcfb",
+      "name": "Add documents"
+    },
+    {
+      "parameters": {
+        "mode": "load",
+        "memoryKey": {
+          "__rl": true,
+          "value": "vector_store_key",
+          "mode": "list",
+          "cachedResultName": "vector_store_key"
+        },
+        "prompt": "={{ $json.chatInput }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.vectorStoreInMemory",
+      "typeVersion": 1.3,
+      "position": [
+        672,
+        -32
+      ],
+      "id": "73da9f36-862c-47b0-b92e-f2127eb588e2",
+      "name": "Get documents"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Add documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Embeddings Google Gemini": {
+      "ai_embedding": [
+        [
+          {
+            "node": "Add documents",
+            "type": "ai_embedding",
+            "index": 0
+          },
+          {
+            "node": "Get documents",
+            "type": "ai_embedding",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Default Data Loader": {
+      "ai_document": [
+        [
+          {
+            "node": "Add documents",
+            "type": "ai_document",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Recursive Character Text Splitter": {
+      "ai_textSplitter": [
+        [
+          {
+            "node": "Default Data Loader",
+            "type": "ai_textSplitter",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Get documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add documents": {
+      "main": [
+        [
+          {
+            "node": "Get documents",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get documents": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "a1d10ae8-0905-4344-9ac3-f2e72f8bacf4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c8ce18066f25917bc44c6f65d6b4d34c6b6208f08c0a90225db447df4117f31"
+  },
+  "id": "UZOB2jVLKhdElT8s",
+  "tags": []
+}

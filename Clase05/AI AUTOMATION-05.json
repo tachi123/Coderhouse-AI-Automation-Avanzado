@@ -1,0 +1,150 @@
+{
+  "name": "AI AUTOMATION-05",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "e9566495-e154-4285-8460-97390a1fd5f3",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -1040,
+        -192
+      ],
+      "id": "384c3b88-3b49-4bb3-a45b-244e40c44084",
+      "name": "recibimosRecetaMedica",
+      "webhookId": "e9566495-e154-4285-8460-97390a1fd5f3"
+    },
+    {
+      "parameters": {
+        "model": "llava:latest",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        -688,
+        -16
+      ],
+      "id": "47948975-470e-4aa1-b82e-ba05f55207b6",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "Bdnw9tuHuUZtUf2E",
+          "name": "Ollama account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        -352,
+        -192
+      ],
+      "id": "052d6e2a-d1c0-484a-92c9-fabe0379e2e4",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $binary.data }}",
+        "messages": {
+          "messageValues": [
+            {
+              "message": "Eres un asistente médico experto. Analiza la imagen adjunta que es un documento de salud. Identifica qué tipo de documento es, extrae el nombre del paciente si lo tiene y resumi los puntos importantes. Responde en forma concisa. Responde que tipo de documento médico es, por ejemplo: radiografía, analisis de laboratorio, receta médica, entre otros"
+            }
+          ]
+        },
+        "batching": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.9,
+      "position": [
+        -688,
+        -400
+      ],
+      "id": "b1fdd553-f6a3-4f19-a08d-00b5a348be1a",
+      "name": "Chain RÍGIDO y LINEAL"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $binary.data }}",
+        "options": {
+          "systemMessage": "Eres un asistente médico experto. Analiza la imagen adjunta que es un documento de salud. Identifica qué tipo de documento es, extrae el nombre del paciente si lo tiene y resumi los puntos importantes. Responde en forma concisa. Responde que tipo de documento médico es, por ejemplo: radiografía, analisis de laboratorio, receta médica, entre otros",
+          "passthroughBinaryImages": true
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        -688,
+        -192
+      ],
+      "id": "a50a99f9-4277-4ee2-99c5-7f8f6ac19658",
+      "name": "AnálisisAutónomoCíclicoYDinámico",
+      "executeOnce": false
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "recibimosRecetaMedica": {
+      "main": [
+        [
+          {
+            "node": "AnálisisAutónomoCíclicoYDinámico",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AnálisisAutónomoCíclicoYDinámico",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Chain RÍGIDO y LINEAL": {
+      "main": [
+        []
+      ]
+    },
+    "AnálisisAutónomoCíclicoYDinámico": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f6893f21-8d88-4966-b675-9b2fa716cfea",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8c8ce18066f25917bc44c6f65d6b4d34c6b6208f08c0a90225db447df4117f31"
+  },
+  "id": "HoafmzinkBMSFU7R",
+  "tags": []
+}
