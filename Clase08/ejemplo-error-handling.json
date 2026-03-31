@@ -1,0 +1,182 @@
+{
+  "name": "Clase 08 - Error Handling y Fallback",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "error-handling",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c08-webhook",
+      "name": "Webhook - Recibe Consulta",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.pregunta }}",
+        "options": {
+          "systemMessage": "Sos un asistente médico informativo. Respondé de forma clara y concisa en español. Siempre aclarás que no reemplazás la consulta con un profesional."
+        }
+      },
+      "id": "c08-llm-primary",
+      "name": "LLM Principal - Modelo Primario",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [500, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// El modelo principal respondió OK\nconst respuesta = $input.all()[0].json.text;\nreturn [{\n  json: {\n    exito: true,\n    modelo_usado: 'primario',\n    pregunta: $('Webhook - Recibe Consulta').item.json.body.pregunta,\n    respuesta: respuesta,\n    intentos: 1\n  }\n}];"
+      },
+      "id": "c08-success",
+      "name": "Code - Respuesta Exitosa",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 200]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('Webhook - Recibe Consulta').item.json.body.pregunta }}",
+        "options": {
+          "systemMessage": "Sos un asistente médico informativo de respaldo. Respondé de forma clara y concisa en español."
+        }
+      },
+      "id": "c08-llm-fallback",
+      "name": "LLM Fallback - Modelo Alternativo",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [750, 450],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// El modelo fallback respondió OK\nconst respuesta = $input.all()[0].json.text;\nreturn [{\n  json: {\n    exito: true,\n    modelo_usado: 'fallback',\n    pregunta: $('Webhook - Recibe Consulta').item.json.body.pregunta,\n    respuesta: respuesta,\n    intentos: 2,\n    nota: 'El modelo primario falló, se usó el modelo de respaldo'\n  }\n}];"
+      },
+      "id": "c08-fallback-ok",
+      "name": "Code - Fallback Exitoso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 350]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Ambos modelos fallaron\nreturn [{\n  json: {\n    exito: false,\n    pregunta: $('Webhook - Recibe Consulta').item.json.body.pregunta,\n    error: 'No se pudo procesar la consulta. Ambos modelos fallaron.',\n    accion: 'Por favor intentá de nuevo en unos minutos o contactá soporte.',\n    intentos: 2,\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "c08-total-fail",
+      "name": "Code - Error Total Controlado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 550]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "allItems"
+      },
+      "id": "c08-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1250, 350]
+    }
+  ],
+  "connections": {
+    "Webhook - Recibe Consulta": {
+      "main": [
+        [
+          {
+            "node": "LLM Principal - Modelo Primario",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Principal - Modelo Primario": {
+      "main": [
+        [
+          {
+            "node": "Code - Respuesta Exitosa",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "LLM Fallback - Modelo Alternativo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Respuesta Exitosa": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Fallback - Modelo Alternativo": {
+      "main": [
+        [
+          {
+            "node": "Code - Fallback Exitoso",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Error Total Controlado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Fallback Exitoso": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Error Total Controlado": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-31T00:00:00.000Z",
+  "versionId": "clase08-error-handling-v1"
+}

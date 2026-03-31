@@ -1,0 +1,128 @@
+{
+  "name": "Clase 05 - Análisis de Imagen Multimodal",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "analizar-imagen",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c05-webhook",
+      "name": "Webhook - Recibe Imagen",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.body.imagen_url }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "buffer"
+            }
+          }
+        }
+      },
+      "id": "c05-download",
+      "name": "HTTP Request - Descargar Imagen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const imageBuffer = $input.all()[0].json.data;\nconst base64 = Buffer.from(imageBuffer).toString('base64');\nconst pregunta = $('Webhook - Recibe Imagen').item.json.body.pregunta || '¿Qué se observa en esta imagen?';\nreturn [{ json: { base64_image: base64, pregunta } }];"
+      },
+      "id": "c05-convert",
+      "name": "Code - Convertir a Base64",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.pregunta }}",
+        "options": {
+          "systemMessage": "Sos un asistente experto en análisis visual. Describí lo que ves en la imagen de forma clara y detallada. Si es una imagen médica, aclarás que tu análisis es orientativo y no reemplaza el diagnóstico de un profesional."
+        }
+      },
+      "id": "c05-llm-vision",
+      "name": "LLM Vision - Analizar Imagen",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ pregunta: $('Webhook - Recibe Imagen').item.json.body.pregunta, analisis: $json.text, disclaimer: 'Este análisis es orientativo y no reemplaza el criterio de un profesional.' }) }}"
+      },
+      "id": "c05-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1250, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Recibe Imagen": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Descargar Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Descargar Imagen": {
+      "main": [
+        [
+          {
+            "node": "Code - Convertir a Base64",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Convertir a Base64": {
+      "main": [
+        [
+          {
+            "node": "LLM Vision - Analizar Imagen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Vision - Analizar Imagen": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-31T00:00:00.000Z",
+  "versionId": "clase05-vision-multimodal-v1"
+}

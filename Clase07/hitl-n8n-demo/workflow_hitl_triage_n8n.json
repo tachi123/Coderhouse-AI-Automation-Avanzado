@@ -297,6 +297,18 @@
     },
     {
       "parameters": {
+        "fields": {
+          "values": [
+            {
+              "name": "paciente_id",
+              "stringValue": "={{$node['Webhook - Recepcion Paciente1'].json.id || 'SIN_ID'}}"
+            },
+            {
+              "name": "reporte_md",
+              "stringValue": "={{'## Informe de Triage\\n\\n- Paciente ID: ' + ($node['Webhook - Recepcion Paciente1'].json.id || 'SIN_ID') + '\\n- Nombre: ' + ($node['Webhook - Recepcion Paciente1'].json.nombre || 'N/A') + '\\n- Sintoma: ' + ($node['Webhook - Recepcion Paciente1'].json.sintoma || 'N/A') + '\\n- Gravedad IA: ' + ($node['Code - Parsear Salida IA1'].json.gravedad || 'N/A') + '\\n- Descripcion IA: ' + ($node['Code - Parsear Salida IA1'].json.descripcion_breve || 'N/A') + '\\n- Decision Medica: APROBADO\\n- Timestamp: ' + $now.toISO()}}"
+            }
+          ]
+        },
         "options": {}
       },
       "id": "65e8ea4a-8f52-48a0-92a3-020d05084f49",
@@ -311,6 +323,7 @@
     {
       "parameters": {
         "mode": "jsonToBinary",
+        "sourceKey": "reporte_md",
         "options": {}
       },
       "id": "0a12880a-7331-4d02-b6f6-35e5efb27838",
@@ -324,16 +337,56 @@
     },
     {
       "parameters": {
-        "fileName": "={{'/home/node/informes/paciente_' + $node['Webhook - Recepcion Paciente1'].json['id'] + '.md'}}",
+        "fileName": "={{'/tmp/informes/paciente_' + ($json.paciente_id || 'SIN_ID') + '.md'}}",
+        "dataPropertyName": "data",
         "options": {}
       },
       "id": "3f02849c-74b0-4d52-97b1-25d36d461d79",
       "name": "Write Binary File - Informe1",
       "type": "n8n-nodes-base.writeBinaryFile",
       "typeVersion": 1,
+      "continueOnFail": true,
       "position": [
         -13008,
         -320
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ !!$json.error }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "f6c9ce64-f2c6-48c7-bdb1-c8a6f0576f7d",
+      "name": "IF - Error al Guardar Informe?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        -12752,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage'}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ { chat_id: $env.TELEGRAM_CHAT_ID, text: 'FALLBACK ARCHIVO: no se pudo escribir el informe markdown en disco. Paciente ID: ' + (($json.paciente_id || $node['Webhook - Recepcion Paciente1'].json.id) || 'N/A') + '. Error: ' + (($json.error && ($json.error.message || $json.error)) || 'sin detalle') } }}",
+        "options": {}
+      },
+      "id": "6a6f7f6e-4e9a-4401-81f7-ffdb673d9905",
+      "name": "HTTP - Fallback Error Archivo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        -12512,
+        -448
       ]
     },
     {
@@ -648,6 +701,35 @@
       ]
     },
     "Write Binary File - Informe1": {
+      "main": [
+        [
+          {
+            "node": "IF - Error al Guardar Informe?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - Error al Guardar Informe?": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Fallback Error Archivo",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "MySQL - Log Aprobado1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Fallback Error Archivo": {
       "main": [
         [
           {

@@ -1,0 +1,99 @@
+{
+  "name": "Clase 04 - Parsing de Documento y Resumen",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "parsear-documento",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c04-webhook",
+      "name": "Webhook - Recibe Documento",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analizá el siguiente documento y generá un resumen estructurado.\n\nDocumento:\n{{ $json.body.documento }}\n\nRespondé SOLO con un JSON válido con esta estructura:\n{\n  \"resumen\": \"resumen en 2-3 oraciones\",\n  \"datos_clave\": {\n    \"personas\": [\"nombres mencionados\"],\n    \"fechas\": [\"fechas encontradas\"],\n    \"numeros_documento\": [\"DNI, expediente, etc\"]\n  },\n  \"puntos_principales\": [\"punto 1\", \"punto 2\", \"punto 3\"],\n  \"categoria\": \"tipo de documento detectado\",\n  \"acciones_pendientes\": [\"si hay alguna acción requerida\"]\n}",
+        "options": {
+          "systemMessage": "Sos un asistente experto en análisis de documentos. Extraés datos clave y generás resúmenes estructurados. Solo respondés con JSON válido."
+        }
+      },
+      "id": "c04-llm",
+      "name": "LLM - Analizar y Resumir",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const textoLLM = $input.all()[0].json.text;\ntry {\n  const analisis = JSON.parse(textoLLM);\n  return [{ json: { exito: true, analisis, documento_original_largo: $('Webhook - Recibe Documento').item.json.body.documento.length + ' caracteres' } }];\n} catch (e) {\n  return [{ json: { exito: false, error: 'No se pudo parsear la respuesta', respuesta_cruda: textoLLM } }];\n}"
+      },
+      "id": "c04-code",
+      "name": "Code - Parsear Resultado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "allItems"
+      },
+      "id": "c04-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Recibe Documento": {
+      "main": [
+        [
+          {
+            "node": "LLM - Analizar y Resumir",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM - Analizar y Resumir": {
+      "main": [
+        [
+          {
+            "node": "Code - Parsear Resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Parsear Resultado": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-31T00:00:00.000Z",
+  "versionId": "clase04-parsing-documento-v1"
+}

@@ -1,0 +1,98 @@
+{
+  "name": "Clase 06 - Agente con Herramientas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "agente",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c06-webhook",
+      "name": "Webhook - Pregunta al Agente",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.pregunta }}",
+        "options": {
+          "systemMessage": "Sos un asistente inteligente con acceso a herramientas. Podés:\n1. Hacer cálculos matemáticos usando la herramienta Calculator\n2. Responder preguntas generales con tu conocimiento\n\nSiempre razoná paso a paso antes de responder. Si necesitás calcular algo, usá la herramienta correspondiente."
+        }
+      },
+      "id": "c06-agent",
+      "name": "AI Agent - Con Herramientas",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {},
+      "id": "c06-calculator",
+      "name": "Calculator Tool",
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [500, 500]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ pregunta: $('Webhook - Pregunta al Agente').item.json.body.pregunta, respuesta: $json.output, razonamiento: 'El agente usó herramientas para resolver la consulta' }) }}"
+      },
+      "id": "c06-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [750, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Pregunta al Agente": {
+      "main": [
+        [
+          {
+            "node": "AI Agent - Con Herramientas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent - Con Herramientas": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent - Con Herramientas",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-31T00:00:00.000Z",
+  "versionId": "clase06-agente-herramientas-v1"
+}

@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: n8n_produccion
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # --- Configuración Regional ---
+      - GENERIC_TIMEZONE=America/Argentina/Buenos_Aires
+      - TZ=America/Argentina/Buenos_Aires
+
+      # --- Permisos y Seguridad ---
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false # Permite usar $env en los nodos
+
+      # --- Variables de Entorno de tu Proyecto ---
+      - MODO_DRY_RUN=true
+      - ENTORNO=desarrollo
+      - API_KEY=ASDFASDF
+      - CLIENT_ID=NAHUEL
+
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:
+    name: n8n_datos_persistentes

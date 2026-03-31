@@ -1,0 +1,220 @@
+{
+  "name": "Clase 07 - Aprobación Humana Simple (HITL)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "solicitud-hitl",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c07-webhook-solicitud",
+      "name": "Webhook - Recibe Solicitud",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analizá la siguiente solicitud y generá una recomendación:\n\nSolicitud: {{ $json.body.consulta }}\nUsuario: {{ $json.body.usuario }}\n\nRespondé con un JSON:\n{\n  \"recomendacion\": \"aprobar | rechazar | revisar\",\n  \"motivo\": \"explicación breve\",\n  \"riesgo\": \"bajo | medio | alto\",\n  \"monto_involucrado\": \"si aplica\"\n}",
+        "options": {
+          "systemMessage": "Sos un asistente de análisis de riesgo. Evaluás solicitudes y das una recomendación. Solo respondés con JSON válido."
+        }
+      },
+      "id": "c07-llm",
+      "name": "LLM - Analizar Riesgo",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const analisis = $input.all()[0].json.text;\nconst solicitud = $('Webhook - Recibe Solicitud').item.json.body;\n\nlet parsedAnalisis;\ntry {\n  parsedAnalisis = JSON.parse(analisis);\n} catch(e) {\n  parsedAnalisis = { recomendacion: 'revisar', motivo: analisis, riesgo: 'alto' };\n}\n\nreturn [{\n  json: {\n    estado: 'PENDIENTE_APROBACION',\n    solicitud_original: solicitud,\n    analisis_ia: parsedAnalisis,\n    mensaje: 'La IA analizó la solicitud. Esperando decisión humana en /webhook-test/decision-hitl',\n    timestamp: new Date().toISOString()\n  }\n}];"
+      },
+      "id": "c07-code",
+      "name": "Code - Preparar para Revisión",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "allItems"
+      },
+      "id": "c07-respond",
+      "name": "Respond - Solicitud Recibida",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "decision-hitl",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c07-webhook-decision",
+      "name": "Webhook - Decisión Humana",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 550]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.body.decision }}",
+              "rightValue": "aprobado",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ]
+        }
+      },
+      "id": "c07-if",
+      "name": "IF - ¿Aprobado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [500, 550]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { estado: 'APROBADO', revisor: $('Webhook - Decisión Humana').item.json.body.revisor, timestamp: new Date().toISOString(), mensaje: 'Solicitud aprobada por el supervisor. Procediendo con la ejecución.' } }];"
+      },
+      "id": "c07-aprobado",
+      "name": "Code - Aprobado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 450]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { estado: 'RECHAZADO', revisor: $('Webhook - Decisión Humana').item.json.body.revisor, timestamp: new Date().toISOString(), mensaje: 'Solicitud rechazada por el supervisor. No se ejecutará la acción.' } }];"
+      },
+      "id": "c07-rechazado",
+      "name": "Code - Rechazado",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 650]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "allItems"
+      },
+      "id": "c07-respond-decision",
+      "name": "Respond - Resultado Final",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 550]
+    }
+  ],
+  "connections": {
+    "Webhook - Recibe Solicitud": {
+      "main": [
+        [
+          {
+            "node": "LLM - Analizar Riesgo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM - Analizar Riesgo": {
+      "main": [
+        [
+          {
+            "node": "Code - Preparar para Revisión",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Preparar para Revisión": {
+      "main": [
+        [
+          {
+            "node": "Respond - Solicitud Recibida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook - Decisión Humana": {
+      "main": [
+        [
+          {
+            "node": "IF - ¿Aprobado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF - ¿Aprobado?": {
+      "main": [
+        [
+          {
+            "node": "Code - Aprobado",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Rechazado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Aprobado": {
+      "main": [
+        [
+          {
+            "node": "Respond - Resultado Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Rechazado": {
+      "main": [
+        [
+          {
+            "node": "Respond - Resultado Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-31T00:00:00.000Z",
+  "versionId": "clase07-aprobacion-humana-v1"
+}

@@ -1,0 +1,127 @@
+{
+  "name": "Clase 09 - Health Check del Sistema",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "health-check",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c09-webhook",
+      "name": "Webhook - Health Check",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://host.docker.internal:11434/api/tags",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "id": "c09-check-ollama",
+      "name": "HTTP - Verificar Ollama",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ollamaResponse = $input.all()[0].json;\nlet ollamaStatus = 'desconectado';\nlet modelos = [];\n\ntry {\n  if (ollamaResponse && ollamaResponse.models) {\n    ollamaStatus = 'conectado';\n    modelos = ollamaResponse.models.map(m => m.name);\n  }\n} catch(e) {\n  ollamaStatus = 'error: ' + e.message;\n}\n\nconst reporte = {\n  timestamp: new Date().toISOString(),\n  sistema: {\n    n8n: 'operativo',\n    ollama: ollamaStatus,\n    modelos_disponibles: modelos\n  },\n  checks: {\n    n8n_respondiendo: true,\n    ollama_conectado: ollamaStatus === 'conectado',\n    llama3_disponible: modelos.some(m => m.includes('llama3')),\n    embeddings_disponible: modelos.some(m => m.includes('nomic-embed-text'))\n  },\n  resumen: ollamaStatus === 'conectado' ? 'Sistema operativo' : 'Ollama no disponible - verificar que esté corriendo'\n};\n\nreturn [{ json: reporte }];"
+      },
+      "id": "c09-report-ok",
+      "name": "Code - Generar Reporte (OK)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{\n  json: {\n    timestamp: new Date().toISOString(),\n    sistema: {\n      n8n: 'operativo',\n      ollama: 'desconectado'\n    },\n    checks: {\n      n8n_respondiendo: true,\n      ollama_conectado: false,\n      llama3_disponible: false,\n      embeddings_disponible: false\n    },\n    resumen: 'Ollama no está corriendo. Ejecutá: ollama serve',\n    solucion: 'Verificar que Ollama esté instalado y corriendo en localhost:11434'\n  }\n}];"
+      },
+      "id": "c09-report-fail",
+      "name": "Code - Generar Reporte (Error)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 400]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "allItems"
+      },
+      "id": "c09-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Health Check": {
+      "main": [
+        [
+          {
+            "node": "HTTP - Verificar Ollama",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP - Verificar Ollama": {
+      "main": [
+        [
+          {
+            "node": "Code - Generar Reporte (OK)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Code - Generar Reporte (Error)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Generar Reporte (OK)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Generar Reporte (Error)": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-31T00:00:00.000Z",
+  "versionId": "clase09-health-check-v1"
+}

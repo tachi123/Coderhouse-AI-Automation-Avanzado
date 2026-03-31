@@ -1,0 +1,99 @@
+{
+  "name": "Clase 02 - Extracción de Datos desde Texto",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "extraer-datos",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "c02-webhook",
+      "name": "Webhook - Recibe Texto",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Extraé los datos del siguiente texto y respondé SOLO con un JSON válido, sin explicaciones:\n\nTexto: {{ $json.body.texto }}\n\nFormato de respuesta (JSON):\n{\n  \"nombre\": \"nombre de la persona o null\",\n  \"fecha\": \"fecha mencionada o null\",\n  \"asunto\": \"resumen en máximo 10 palabras\",\n  \"sentimiento\": \"positivo | neutro | negativo\",\n  \"prioridad\": \"baja | media | alta\",\n  \"accion_requerida\": \"qué hay que hacer en una oración\"\n}",
+        "options": {
+          "systemMessage": "Sos un asistente experto en extracción de datos. Solo respondés con JSON válido, sin markdown, sin explicaciones."
+        }
+      },
+      "id": "c02-llm",
+      "name": "LLM - Extraer Campos",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const textoLLM = $input.all()[0].json.text;\ntry {\n  const datos = JSON.parse(textoLLM);\n  return [{ json: { exito: true, datos_extraidos: datos, texto_original: $('Webhook - Recibe Texto').item.json.body.texto } }];\n} catch (e) {\n  return [{ json: { exito: false, error: 'El LLM no devolvió JSON válido', respuesta_cruda: textoLLM } }];\n}"
+      },
+      "id": "c02-code",
+      "name": "Code - Parsear JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "responseCode": 200
+        },
+        "respondWith": "allItems"
+      },
+      "id": "c02-respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1000, 300]
+    }
+  ],
+  "connections": {
+    "Webhook - Recibe Texto": {
+      "main": [
+        [
+          {
+            "node": "LLM - Extraer Campos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM - Extraer Campos": {
+      "main": [
+        [
+          {
+            "node": "Code - Parsear JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Parsear JSON": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "staticData": null,
+  "tags": [],
+  "triggerCount": 0,
+  "updatedAt": "2026-03-31T00:00:00.000Z",
+  "versionId": "clase02-extraccion-datos-v1"
+}

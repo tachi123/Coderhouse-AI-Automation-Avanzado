@@ -125,3 +125,12 @@ En ejecuciones reales, este patron puede disparar timeout incluso si hubo aproba
 Para produccion, se recomienda:
 - usar un solo `Wait` con control de tiempo maximo, o
 - persistir estado en DB/Redis y validar estado antes de mandar alerta de timeout.
+
+## 7) Write Binary File (si falla disco)
+Si `Write Binary File - Informe1` falla por permisos/ruta en Docker:
+- el workflow ahora escribe en `/tmp/informes/...` (ruta mas segura en contenedores)
+- y tiene fallback: `IF - Error al Guardar Informe?` -> `HTTP - Fallback Error Archivo` (Telegram)
+- ademas no corta la ejecucion: despues del fallback sigue a `MySQL - Log Aprobado1`
+
+Tip para persistencia real:
+- monta un volumen Docker y cambia `fileName` a una ruta montada, por ejemplo `/data/informes/...`
